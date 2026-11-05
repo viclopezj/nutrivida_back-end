@@ -1,0 +1,21 @@
+server:
+  port: 8083
+
+  spring:
+    application:
+      name: pedidos-service
+    datasource:
+      url: jdbc:mysql://localhost:3306/nv_bd_pedidos
+      username: root
+      password:
+    jpa:
+      hibernate:
+        ddl-auto: validate
+      show-sql: true
+
+  springdoc:
+    api-docs:
+      enabled: true
+    swagger-ui:
+      enabled: true
+      path: /swagger-ui.html
