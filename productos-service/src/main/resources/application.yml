@@ -1,21 +1,21 @@
 server:
   port: 8082
 
-  spring:
-    application:
-      name: productos-service
-    datasource:
-      url: jdbc:mysql://localhost:3306/nv_bd_productos
-      username: root
-      password:
-    jpa:
-      hibernate:
-        ddl-auto: validate
-      show-sql: true
+spring:
+  application:
+    name: productos-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/nv_bd_productos
+    username: root
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
 
-  springdoc:
-    api-docs:
-      enabled: true
-    swagger-ui:
-      enabled: true
-      path: /swagger-ui.html
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html

@@ -1,21 +1,21 @@
 server:
   port: 8081
 
-  spring:
-    application:
-      name: pacientes-service
-    datasource:
-      url: jdbc:mysql://localhost:3306/nv_bd_pacientes
-      username: root
-      password:
-    jpa:
-      hibernate:
-        ddl-auto: validate
-      show-sql: true
+spring:
+  application:
+    name: pacientes-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/nv_bd_pacientes
+    username: root
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
 
-  springdoc:
-    api-docs:
-      enabled: true
-    swagger-ui:
-      enabled: true
-      path: /swagger-ui.html
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
