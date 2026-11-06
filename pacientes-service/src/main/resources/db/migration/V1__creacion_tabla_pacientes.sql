@@ -4,7 +4,7 @@ CREATE TABLE pacientes (
                            nombre             VARCHAR(100) NOT NULL,
                            apellido           VARCHAR(100) NOT NULL,
                            email              VARCHAR(150) NOT NULL UNIQUE,
-                           telefono           VARCHAR(15)  NOT NULL,
+                           telefono           VARCHAR(12)  NOT NULL,
                            fecha_nacimiento   DATE         NOT NULL,
                            sexo_biologico     VARCHAR(30)  NOT NULL,
                            identidad_genero   VARCHAR(30)  NOT NULL,

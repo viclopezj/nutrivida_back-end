@@ -5,7 +5,8 @@ CREATE TABLE pedidos (
                          cantidad        INT         NOT NULL,
                          precio_unitario INT         NOT NULL,
                          total           INT         NOT NULL,
-                         estado          VARCHAR(20) NOT NULL DEFAULT 'pagado',
+                         estado          VARCHAR(20) NOT NULL DEFAULT 'pendiente',
                          fecha_pedido    DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                         CONSTRAINT chk_pedido_cantidad CHECK (cantidad > 0)
+                         CONSTRAINT chk_pedido_cantidad CHECK (cantidad > 0),
+                         CONSTRAINT chk_pedido_estado CHECK (estado IN ('pagado', 'pendiente'))
 );
