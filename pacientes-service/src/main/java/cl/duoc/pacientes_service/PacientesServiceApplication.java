@@ -10,8 +10,12 @@ import io.swagger.v3.oas.annotations.info.Info;
 		info = @Info(
 				title = "API NutriVida 'Pacientes'",
 				version = "1.0",
-				description = "API que gestiona el CRUD de los pacientes",
-				contact = @Contact(name = "Vicente Lopez", email = "vic.lopez@estudiante.duoc.cl")
+				description = "API que gestiona el CRUD de los pacientes. "
+						+ "Desarrollada por Vicente Lopez e Igor Rojas",
+				contact = @Contact(
+						name = "Vicente Lopez e Igor Rojas",
+						email = "vic.lopez@estudiante.duoc.cl"
+				)
 		)
 )
 @SpringBootApplication
