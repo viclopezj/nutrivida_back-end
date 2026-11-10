@@ -243,5 +243,5 @@ Pruebas de error esperadas (400): repetir el mismo paciente (RUT repetido), un p
 
 ## Autores
 
-- Vicente Lopez - vic.lopez@duoc.cl
+- Vicente Lopez - vic.lopez@duocuc.cl
 - Igor Rojas - igo.rojas@duocuc.cl
