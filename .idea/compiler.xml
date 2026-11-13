@@ -3,7 +3,12 @@
   <component name="CompilerConfiguration">
     <annotationProcessing>
       <profile default="true" name="Default" enabled="true" />
-      <profile name="Annotation profile for productos-service" enabled="true">
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+      </profile>
+      <profile name="Annotation profile for auth-service" enabled="true">
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
@@ -11,14 +16,20 @@
           <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.48/lombok-1.18.48.jar" />
         </processorPath>
         <module name="pedidos-service" />
-        <module name="pacientes-service" />
+        <module name="auth-service" />
         <module name="productos-service" />
+        <module name="pacientes-service" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="pacientes-service (1)" target="25" />
+    </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="auth-service" options="-parameters" />
       <module name="pacientes-service" options="-parameters" />
+      <module name="pacientes-service (1)" options="-parameters" />
       <module name="pedidos-service" options="-parameters" />
       <module name="productos-service" options="-parameters" />
     </option>

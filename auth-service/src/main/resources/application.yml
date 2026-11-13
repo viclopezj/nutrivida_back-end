@@ -1,0 +1,25 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: pacientes-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/nv_bd_auth
+    username: root
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+
+jwt:
+  secret: ${JWT_SECRET:nutrivida-clave-secreta-para-jwt-2026-minimo-32-caracteres}
+  expiracion-ms: 3600000
