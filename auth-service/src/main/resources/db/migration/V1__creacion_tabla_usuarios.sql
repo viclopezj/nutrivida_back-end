@@ -3,5 +3,5 @@ CREATE TABLE usuarios (
                           email    VARCHAR(150) NOT NULL UNIQUE,
                           password VARCHAR(100) NOT NULL,
                           rol      VARCHAR(20)  NOT NULL,
-                          CONSTRAINT chk_usuario_rol CHECK (rol IN ('ADMIN', 'PACIENTE'))
+                          CONSTRAINT chk_usuario_rol CHECK (rol IN ('ADMIN', 'PACIENTE', 'SECRETARIA'))
 );
