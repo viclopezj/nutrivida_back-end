@@ -111,6 +111,7 @@ Ejecutar en MySQL como `root`:
 CREATE DATABASE IF NOT EXISTS nv_bd_pacientes;
 CREATE DATABASE IF NOT EXISTS nv_bd_productos;
 CREATE DATABASE IF NOT EXISTS nv_bd_pedidos;
+CREATE DATABASE IF NOT EXISTS nv_bd_auth;
 ```
 
 Las tablas **no** se crean a mano: las crea Flyway con las migraciones `V1` al arrancar cada servicio.
