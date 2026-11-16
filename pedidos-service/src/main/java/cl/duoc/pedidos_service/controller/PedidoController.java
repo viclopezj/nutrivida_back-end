@@ -13,10 +13,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.hateoas.Link;
 
@@ -50,7 +53,11 @@ public class PedidoController {
     )
     @GetMapping
     public ResponseEntity<?> listar() {
-        return ResponseEntity.ok(pedidoService.findAll());
+        List<EntityModel<Pedido>> pedidos = pedidoService.findAll().stream()
+                .map(this::conEnlaces)
+                .toList();
+        return ResponseEntity.ok(CollectionModel.of(pedidos,
+                linkTo(methodOn(PedidoController.class).listar()).withSelfRel()));
     }
 
     //2
@@ -96,7 +103,7 @@ public class PedidoController {
             @Parameter(description = "ID del pedido", example = "1") @PathVariable Long id) {
         Pedido pedido = pedidoService.findById(id);
         if (pedido == null) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(pedido);
+        return ResponseEntity.ok(conEnlaces(pedido));
     }
 
     //3
