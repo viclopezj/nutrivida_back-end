@@ -4,21 +4,30 @@ import cl.duoc.pacientes_service.exception.ErrorResponse;
 import cl.duoc.pacientes_service.model.Paciente;
 import cl.duoc.pacientes_service.service.PacienteService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.hateoas.CollectionModel;
+import org.springframework.hateoas.EntityModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
-@Tag(name = "Pacientes", description = "CRUD de pacientes")
+import java.util.List;
+
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
+
+@Tag(name = "Pacientes", description = "CRUD de pacientes. Los GET devuelven enlaces HATEOAS; "
+        + "requiere token JWT de cualquier rol")
 @SecurityRequirement(name = "bearerAuth")
+@ApiResponse(responseCode = "401", description = "Token ausente, invalido o expirado")
 @RestController
 @RequestMapping("api/v1/pacientes")
 public class PacienteController {
@@ -29,57 +38,104 @@ public class PacienteController {
     //1
     @Operation(
             summary = "Listar pacientes",
-            description = "Metodo que lista todos los pacientes del sistema"
+            description = "Lista todos los pacientes del sistema. Cada paciente incluye enlaces HATEOAS (_links)"
     )
     @ApiResponse(
             responseCode = "200",
             description = "Pacientes encontrados",
             content = @Content(
-                    mediaType = "application/json",
-                    array = @ArraySchema(
-                            schema = @Schema(implementation = Paciente.class)
-                    )
+                    mediaType = "application/hal+json",
+                    examples = @ExampleObject(name = "Lista de pacientes", value = """
+                            {
+                              "_embedded": {
+                                "pacienteList": [
+                                  {
+                                    "id": 1,
+                                    "rut": "12.345.678-9",
+                                    "nombre": "Ana",
+                                    "apellido": "Pérez González",
+                                    "email": "paciente@gmail.com",
+                                    "telefono": "+56912345678",
+                                    "fechaNacimiento": "1995-08-20",
+                                    "sexoBiologico": "Femenino",
+                                    "identidadGenero": "Mujer",
+                                    "peso": 68.5,
+                                    "estatura": 165,
+                                    "cintura": 80,
+                                    "alergias": "Alergia a los frutos secos",
+                                    "enfermedades": null,
+                                    "patronAlimenticio": "Omnívoro",
+                                    "_links": {
+                                      "self": { "href": "http://localhost:8081/api/v1/pacientes/1" },
+                                      "pacientes": { "href": "http://localhost:8081/api/v1/pacientes" }
+                                    }
+                                  }
+                                ]
+                              },
+                              "_links": {
+                                "self": { "href": "http://localhost:8081/api/v1/pacientes" }
+                              }
+                            }
+                            """)
             )
     )
     @GetMapping
     public ResponseEntity<?> listar() {
-        return ResponseEntity.ok(pacienteService.findAll());
+        List<EntityModel<Paciente>> pacientes = pacienteService.findAll().stream()
+                .map(this::conEnlaces)
+                .toList();
+        return ResponseEntity.ok(CollectionModel.of(pacientes,
+                linkTo(methodOn(PacienteController.class).listar()).withSelfRel()));
     }
 
     //2
     @Operation(
             summary = "Buscar paciente por ID",
-            description = "Metodo que busca un paciente a traves del ID. Este id es de tipo numerico (LONG)"
+            description = "Busca un paciente a traves del ID (numerico, tipo Long). Incluye enlaces HATEOAS (_links)"
     )
     @ApiResponse(
             responseCode = "200",
             description = "Paciente encontrado",
             content = @Content(
-                    mediaType = "application/json",
-                    schema = @Schema(implementation = Paciente.class)
+                    mediaType = "application/hal+json",
+                    examples = @ExampleObject(name = "Paciente encontrado", value = """
+                            {
+                              "id": 1,
+                              "rut": "12.345.678-9",
+                              "nombre": "Ana",
+                              "apellido": "Pérez González",
+                              "email": "paciente@gmail.com",
+                              "telefono": "+56912345678",
+                              "fechaNacimiento": "1995-08-20",
+                              "sexoBiologico": "Femenino",
+                              "identidadGenero": "Mujer",
+                              "peso": 68.5,
+                              "estatura": 165,
+                              "cintura": 80,
+                              "alergias": "Alergia a los frutos secos",
+                              "enfermedades": null,
+                              "patronAlimenticio": "Omnívoro",
+                              "_links": {
+                                "self": { "href": "http://localhost:8081/api/v1/pacientes/1" },
+                                "pacientes": { "href": "http://localhost:8081/api/v1/pacientes" }
+                              }
+                            }
+                            """)
             )
     )
-    @ApiResponse(
-            responseCode = "404",
-            description = "Paciente no encontrado",
-            content = @Content(
-                    mediaType = "application/json",
-                    schema = @Schema(implementation = ErrorResponse.class)
-            )
-    )
+    @ApiResponse(responseCode = "404", description = "Paciente no encontrado")
     @GetMapping("/{id}")
     public ResponseEntity<?> buscarPorId(
-            @Parameter(description = "ID del paciente", example = "1")
-            @PathVariable Long id) {
+            @Parameter(description = "ID del paciente", example = "1") @PathVariable Long id) {
         Paciente paciente = pacienteService.findById(id);
         if (paciente == null) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(paciente);
+        return ResponseEntity.ok(conEnlaces(paciente));
     }
 
     //3
     @Operation(
             summary = "Registrar un paciente",
-            description = "Metodo que registra un paciente en el sistema. El RUT y el email no pueden repetirse"
+            description = "Registra un paciente en el sistema. El RUT y el email no pueden repetirse"
     )
     @ApiResponse(
             responseCode = "201",
@@ -106,7 +162,7 @@ public class PacienteController {
     //4
     @Operation(
             summary = "Actualizar un paciente por ID",
-            description = "Metodo que actualiza un paciente en el sistema a traves del ID"
+            description = "Actualiza un paciente en el sistema a traves del ID"
     )
     @ApiResponse(
             responseCode = "200",
@@ -117,13 +173,14 @@ public class PacienteController {
             )
     )
     @ApiResponse(
-            responseCode = "404",
-            description = "Paciente no encontrado",
+            responseCode = "400",
+            description = "Datos invalidos o RUT/email repetido",
             content = @Content(
                     mediaType = "application/json",
                     schema = @Schema(implementation = ErrorResponse.class)
             )
     )
+    @ApiResponse(responseCode = "404", description = "Paciente no encontrado")
     @PutMapping("/{id}")
     public ResponseEntity<?> actualizar(
             @Parameter(description = "ID del paciente", example = "1") @PathVariable Long id,
@@ -136,7 +193,7 @@ public class PacienteController {
     //5
     @Operation(
             summary = "Eliminar un paciente por ID",
-            description = "Metodo que elimina un paciente del sistema a traves del ID"
+            description = "Elimina un paciente del sistema a traves del ID"
     )
     @ApiResponse(responseCode = "204", description = "Paciente eliminado")
     @DeleteMapping("/{id}")
@@ -144,5 +201,12 @@ public class PacienteController {
             @Parameter(description = "ID del paciente", example = "1") @PathVariable Long id) {
         pacienteService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // Envuelve el paciente agregando sus enlaces HATEOAS: el propio recurso y la coleccion
+    private EntityModel<Paciente> conEnlaces(Paciente paciente) {
+        return EntityModel.of(paciente,
+                linkTo(methodOn(PacienteController.class).buscarPorId(paciente.getId())).withSelfRel(),
+                linkTo(methodOn(PacienteController.class).listar()).withRel("pacientes"));
     }
 }
