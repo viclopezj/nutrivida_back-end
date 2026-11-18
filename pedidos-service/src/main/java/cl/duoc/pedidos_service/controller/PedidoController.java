@@ -5,30 +5,30 @@ import cl.duoc.pedidos_service.model.Pedido;
 import cl.duoc.pedidos_service.service.PedidoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.Link;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import org.springframework.hateoas.Link;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
-
-@Tag(name = "Pedidos", description = "CRUD de pedidos")
+@Tag(name = "Pedidos", description = "CRUD de pedidos. Los GET devuelven enlaces HATEOAS (incluye enlaces "
+        + "al paciente y al producto del pedido); requiere token JWT de cualquier rol")
 @SecurityRequirement(name = "bearerAuth")
+@ApiResponse(responseCode = "401", description = "Token ausente, invalido o expirado")
 @RestController
 @RequestMapping("api/v1/pedidos")
 public class PedidoController {
@@ -39,16 +39,40 @@ public class PedidoController {
     //1
     @Operation(
             summary = "Listar pedidos",
-            description = "Metodo que lista todos los pedidos del sistema"
+            description = "Lista todos los pedidos del sistema. Cada pedido incluye enlaces HATEOAS (_links)"
     )
     @ApiResponse(
             responseCode = "200",
             description = "Pedidos encontrados",
             content = @Content(
-                    mediaType = "application/json",
-                    array = @ArraySchema(
-                            schema = @Schema(implementation = Pedido.class)
-                    )
+                    mediaType = "application/hal+json",
+                    examples = @ExampleObject(name = "Lista de pedidos", value = """
+                            {
+                              "_embedded": {
+                                "pedidoList": [
+                                  {
+                                    "id": 1,
+                                    "idPaciente": 1,
+                                    "idProducto": 1,
+                                    "cantidad": 2,
+                                    "precioUnitario": 7990,
+                                    "total": 15980,
+                                    "estado": "pagado",
+                                    "fechaPedido": "2026-11-02T10:15:00",
+                                    "_links": {
+                                      "self": { "href": "http://localhost:8083/api/v1/pedidos/1" },
+                                      "pedidos": { "href": "http://localhost:8083/api/v1/pedidos" },
+                                      "paciente": { "href": "http://localhost:8081/api/v1/pacientes/1" },
+                                      "producto": { "href": "http://localhost:8082/api/v1/productos/1" }
+                                    }
+                                  }
+                                ]
+                              },
+                              "_links": {
+                                "self": { "href": "http://localhost:8083/api/v1/pedidos" }
+                              }
+                            }
+                            """)
             )
     )
     @GetMapping
@@ -63,7 +87,7 @@ public class PedidoController {
     //2
     @Operation(
             summary = "Buscar pedido por ID",
-            description = "Metodo que busca un pedido a traves del ID. Este id es de tipo numerico (LONG)"
+            description = "Busca un pedido a traves del ID (numerico, tipo Long). Incluye enlaces HATEOAS (_links)"
     )
     @ApiResponse(
             responseCode = "200",
@@ -76,10 +100,10 @@ public class PedidoController {
                               "idPaciente": 1,
                               "idProducto": 1,
                               "cantidad": 2,
-                              "precioUnitario": 12990,
-                              "total": 25980,
+                              "precioUnitario": 7990,
+                              "total": 15980,
                               "estado": "pagado",
-                              "fechaPedido": "2026-11-10T09:00:00",
+                              "fechaPedido": "2026-11-02T10:15:00",
                               "_links": {
                                 "self": { "href": "http://localhost:8083/api/v1/pedidos/1" },
                                 "pedidos": { "href": "http://localhost:8083/api/v1/pedidos" },
@@ -90,14 +114,7 @@ public class PedidoController {
                             """)
             )
     )
-    @ApiResponse(
-            responseCode = "404",
-            description = "Pedido no encontrado",
-            content = @Content(
-                    mediaType = "application/json",
-                    schema = @Schema(implementation = ErrorResponse.class)
-            )
-    )
+    @ApiResponse(responseCode = "404", description = "Pedido no encontrado (respuesta sin cuerpo)")
     @GetMapping("/{id}")
     public ResponseEntity<?> buscarPorId(
             @Parameter(description = "ID del pedido", example = "1") @PathVariable Long id) {
@@ -109,15 +126,56 @@ public class PedidoController {
     //3
     @Operation(
             summary = "Registrar un pedido",
-            description = "Registra un pedido. El total debe ser cantidad x precio unitario. "
-                    + "Si no se envia estado queda 'pendiente' y si no se envia fecha se usa la actual"
+            description = "Registra un pedido. El total debe ser igual a cantidad x precio unitario. "
+                    + "El estado solo acepta 'pendiente' o 'pagado': si no se envia queda 'pendiente'. "
+                    + "Si no se envia fechaPedido se usa la fecha y hora actual",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = Pedido.class),
+                            examples = {
+                                    @ExampleObject(name = "Solo datos obligatorios (estado y fecha por defecto)", value = """
+                                            {
+                                              "idPaciente": 1,
+                                              "idProducto": 1,
+                                              "cantidad": 2,
+                                              "precioUnitario": 7990,
+                                              "total": 15980
+                                            }
+                                            """),
+                                    @ExampleObject(name = "Pedido pagado con fecha", value = """
+                                            {
+                                              "idPaciente": 2,
+                                              "idProducto": 3,
+                                              "cantidad": 1,
+                                              "precioUnitario": 12990,
+                                              "total": 12990,
+                                              "estado": "pagado",
+                                              "fechaPedido": "2026-11-10T09:00:00"
+                                            }
+                                            """)
+                            }
+                    )
+            )
     )
     @ApiResponse(
             responseCode = "201",
             description = "Pedido creado",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = Pedido.class)
+                    schema = @Schema(implementation = Pedido.class),
+                    examples = @ExampleObject(name = "Pedido creado", value = """
+                            {
+                              "id": 6,
+                              "idPaciente": 1,
+                              "idProducto": 1,
+                              "cantidad": 2,
+                              "precioUnitario": 7990,
+                              "total": 15980,
+                              "estado": "pendiente",
+                              "fechaPedido": "2026-11-10T09:00:00"
+                            }
+                            """)
             )
     )
     @ApiResponse(
@@ -125,7 +183,33 @@ public class PedidoController {
             description = "Datos invalidos, total distinto de cantidad x precio unitario o estado invalido",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ErrorResponse.class)
+                    schema = @Schema(implementation = ErrorResponse.class),
+                    examples = {
+                            @ExampleObject(name = "Datos invalidos", value = """
+                                    {
+                                      "status": 400,
+                                      "error": "Error de validacion",
+                                      "mensaje": "[Cantidad debe ser mayor a 0., Paciente no puede estar vacio.]",
+                                      "fechaHora": "2026-11-10T09:00:00"
+                                    }
+                                    """),
+                            @ExampleObject(name = "Total no cuadra", value = """
+                                    {
+                                      "status": 400,
+                                      "error": "Error en reglas de negocio (Total)",
+                                      "mensaje": "El total (15981) debe ser igual a cantidad x precio unitario (15980).",
+                                      "fechaHora": "2026-11-10T09:00:00"
+                                    }
+                                    """),
+                            @ExampleObject(name = "Estado invalido", value = """
+                                    {
+                                      "status": 400,
+                                      "error": "Error en reglas de negocio (Estado)",
+                                      "mensaje": "El estado 'cancelado' es invalido. Los estados permitidos son: 'pendiente' o 'pagado'.",
+                                      "fechaHora": "2026-11-10T09:00:00"
+                                    }
+                                    """)
+                    }
             )
     )
     @PostMapping
@@ -137,22 +221,43 @@ public class PedidoController {
     //4
     @Operation(
             summary = "Actualizar un pedido por ID",
-            description = "Metodo que actualiza un pedido a traves del ID aplicando las mismas reglas del registro"
+            description = "Actualiza un pedido a traves del ID aplicando las mismas reglas del registro",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = Pedido.class),
+                            examples = @ExampleObject(name = "Marcar pedido como pagado", value = """
+                                    {
+                                      "idPaciente": 1,
+                                      "idProducto": 3,
+                                      "cantidad": 1,
+                                      "precioUnitario": 12990,
+                                      "total": 12990,
+                                      "estado": "pagado",
+                                      "fechaPedido": "2026-11-05T16:40:00"
+                                    }
+                                    """)
+                    )
+            )
     )
     @ApiResponse(
             responseCode = "200",
             description = "Pedido actualizado",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = Pedido.class)
-            )
-    )
-    @ApiResponse(
-            responseCode = "404",
-            description = "Pedido no encontrado",
-            content = @Content(
-                    mediaType = "application/json",
-                    schema = @Schema(implementation = ErrorResponse.class)
+                    schema = @Schema(implementation = Pedido.class),
+                    examples = @ExampleObject(name = "Pedido actualizado", value = """
+                            {
+                              "id": 2,
+                              "idPaciente": 1,
+                              "idProducto": 3,
+                              "cantidad": 1,
+                              "precioUnitario": 12990,
+                              "total": 12990,
+                              "estado": "pagado",
+                              "fechaPedido": "2026-11-05T16:40:00"
+                            }
+                            """)
             )
     )
     @ApiResponse(
@@ -160,12 +265,39 @@ public class PedidoController {
             description = "Datos invalidos, total distinto de cantidad x precio unitario o estado invalido",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ErrorResponse.class)
+                    schema = @Schema(implementation = ErrorResponse.class),
+                    examples = {
+                            @ExampleObject(name = "Datos invalidos", value = """
+                                    {
+                                      "status": 400,
+                                      "error": "Error de validacion",
+                                      "mensaje": "[Total no puede ser negativo.]",
+                                      "fechaHora": "2026-11-10T09:00:00"
+                                    }
+                                    """),
+                            @ExampleObject(name = "Total no cuadra", value = """
+                                    {
+                                      "status": 400,
+                                      "error": "Error en reglas de negocio (Total)",
+                                      "mensaje": "El total (13000) debe ser igual a cantidad x precio unitario (12990).",
+                                      "fechaHora": "2026-11-10T09:00:00"
+                                    }
+                                    """),
+                            @ExampleObject(name = "Estado invalido", value = """
+                                    {
+                                      "status": 400,
+                                      "error": "Error en reglas de negocio (Estado)",
+                                      "mensaje": "El estado 'enviado' es invalido. Los estados permitidos son: 'pendiente' o 'pagado'.",
+                                      "fechaHora": "2026-11-10T09:00:00"
+                                    }
+                                    """)
+                    }
             )
     )
+    @ApiResponse(responseCode = "404", description = "Pedido no encontrado (respuesta sin cuerpo)")
     @PutMapping("/{id}")
     public ResponseEntity<?> actualizar(
-            @Parameter(description = "ID del pedido", example = "1") @PathVariable Long id,
+            @Parameter(description = "ID del pedido", example = "2") @PathVariable Long id,
             @Valid @RequestBody Pedido pedido) {
         Pedido pedidoActualizado = pedidoService.update(id, pedido);
         if (pedidoActualizado == null) return ResponseEntity.notFound().build();
@@ -175,9 +307,9 @@ public class PedidoController {
     //5
     @Operation(
             summary = "Eliminar un pedido por ID",
-            description = "Metodo que elimina un pedido del sistema a traves del ID"
+            description = "Elimina un pedido del sistema a traves del ID"
     )
-    @ApiResponse(responseCode = "204", description = "Pedido eliminado")
+    @ApiResponse(responseCode = "204", description = "Pedido eliminado (respuesta sin cuerpo)")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> borrar(
             @Parameter(description = "ID del pedido", example = "1") @PathVariable Long id) {

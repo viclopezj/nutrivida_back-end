@@ -25,8 +25,8 @@ import java.util.List;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
-@Tag(name = "Productos", description = "CRUD de productos. Los GET devuelven enlaces HATEOAS; "
-        + "POST, PUT y DELETE requieren rol ADMIN")
+@Tag(name = "Productos", description = "CRUD de productos. Los GET devuelven enlaces HATEOAS y los puede usar "
+        + "cualquier usuario autenticado; POST, PUT y DELETE requieren rol ADMIN")
 @SecurityRequirement(name = "bearerAuth")
 @ApiResponse(responseCode = "401", description = "Token ausente, invalido o expirado")
 @RestController
@@ -53,7 +53,7 @@ public class ProductoController {
                                   {
                                     "id": 1,
                                     "nombre": "Aceite de Oliva Extra Virgen 500ml",
-                                    "descripcion": "Aceite de oliva extra virgen prensado en frio.",
+                                    "descripcion": "Aceite de oliva extra virgen prensado en frio, ideal para ensaladas y cocina diaria.",
                                     "precio": 7990,
                                     "categoria": "Despensa",
                                     "destacado": false,
@@ -95,7 +95,7 @@ public class ProductoController {
                             {
                               "id": 1,
                               "nombre": "Aceite de Oliva Extra Virgen 500ml",
-                              "descripcion": "Aceite de oliva extra virgen prensado en frio.",
+                              "descripcion": "Aceite de oliva extra virgen prensado en frio, ideal para ensaladas y cocina diaria.",
                               "precio": 7990,
                               "categoria": "Despensa",
                               "destacado": false,
@@ -108,7 +108,7 @@ public class ProductoController {
                             """)
             )
     )
-    @ApiResponse(responseCode = "404", description = "Producto no encontrado")
+    @ApiResponse(responseCode = "404", description = "Producto no encontrado (respuesta sin cuerpo)")
     @GetMapping("/{id}")
     public ResponseEntity<?> buscarPorId(
             @Parameter(description = "ID del producto", example = "1") @PathVariable Long id) {
@@ -121,14 +121,51 @@ public class ProductoController {
     @Operation(
             summary = "Registrar un producto",
             description = "Registra un producto en el sistema. Requiere rol ADMIN. "
-                    + "Si no se envia destacado queda en false y si no se envia activo queda en true"
+                    + "Si no se envia destacado queda en false y si no se envia activo queda en true",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = Producto.class),
+                            examples = {
+                                    @ExampleObject(name = "Solo datos obligatorios (destacado y activo por defecto)", value = """
+                                            {
+                                              "nombre": "Barra de Cereal Integral 30g",
+                                              "descripcion": "Barra de cereal con avena, miel y frutos secos.",
+                                              "precio": 1290,
+                                              "categoria": "Snacks"
+                                            }
+                                            """),
+                                    @ExampleObject(name = "Producto destacado", value = """
+                                            {
+                                              "nombre": "Quinoa Organica 500g",
+                                              "descripcion": "Quinoa organica libre de gluten, alta en proteinas y fibra.",
+                                              "precio": 5990,
+                                              "categoria": "Despensa",
+                                              "destacado": true,
+                                              "activo": true
+                                            }
+                                            """)
+                            }
+                    )
+            )
     )
     @ApiResponse(
             responseCode = "201",
             description = "Producto creado",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = Producto.class)
+                    schema = @Schema(implementation = Producto.class),
+                    examples = @ExampleObject(name = "Producto creado", value = """
+                            {
+                              "id": 7,
+                              "nombre": "Barra de Cereal Integral 30g",
+                              "descripcion": "Barra de cereal con avena, miel y frutos secos.",
+                              "precio": 1290,
+                              "categoria": "Snacks",
+                              "destacado": false,
+                              "activo": true
+                            }
+                            """)
             )
     )
     @ApiResponse(
@@ -136,10 +173,28 @@ public class ProductoController {
             description = "Datos invalidos",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ErrorResponse.class)
+                    schema = @Schema(implementation = ErrorResponse.class),
+                    examples = {
+                            @ExampleObject(name = "Campos obligatorios vacios", value = """
+                                    {
+                                      "status": 400,
+                                      "error": "Error de validacion",
+                                      "mensaje": "[Nombre no puede estar vacio., Categoria no puede estar vacia.]",
+                                      "fechaHora": "2026-11-10T09:00:00"
+                                    }
+                                    """),
+                            @ExampleObject(name = "Precio negativo", value = """
+                                    {
+                                      "status": 400,
+                                      "error": "Error de validacion",
+                                      "mensaje": "[Precio no puede ser negativo.]",
+                                      "fechaHora": "2026-11-10T09:00:00"
+                                    }
+                                    """)
+                    }
             )
     )
-    @ApiResponse(responseCode = "403", description = "El usuario no tiene rol ADMIN")
+    @ApiResponse(responseCode = "403", description = "El usuario no tiene rol ADMIN (respuesta sin cuerpo definido)")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<?> registrar(@Valid @RequestBody Producto producto) {
@@ -150,14 +205,41 @@ public class ProductoController {
     //4
     @Operation(
             summary = "Actualizar un producto por ID",
-            description = "Actualiza un producto a traves del ID. Requiere rol ADMIN"
+            description = "Actualiza un producto a traves del ID. Requiere rol ADMIN",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = Producto.class),
+                            examples = @ExampleObject(name = "Subir el precio del Mix de Frutos Secos", value = """
+                                    {
+                                      "nombre": "Mix de Frutos Secos 200g",
+                                      "descripcion": "Mezcla de nueces, almendras y arandanos sin sal agregada.",
+                                      "precio": 3790,
+                                      "categoria": "Snacks",
+                                      "destacado": false,
+                                      "activo": true
+                                    }
+                                    """)
+                    )
+            )
     )
     @ApiResponse(
             responseCode = "200",
             description = "Producto actualizado",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = Producto.class)
+                    schema = @Schema(implementation = Producto.class),
+                    examples = @ExampleObject(name = "Producto actualizado", value = """
+                            {
+                              "id": 4,
+                              "nombre": "Mix de Frutos Secos 200g",
+                              "descripcion": "Mezcla de nueces, almendras y arandanos sin sal agregada.",
+                              "precio": 3790,
+                              "categoria": "Snacks",
+                              "destacado": false,
+                              "activo": true
+                            }
+                            """)
             )
     )
     @ApiResponse(
@@ -165,15 +247,23 @@ public class ProductoController {
             description = "Datos invalidos",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ErrorResponse.class)
+                    schema = @Schema(implementation = ErrorResponse.class),
+                    examples = @ExampleObject(name = "Datos invalidos", value = """
+                            {
+                              "status": 400,
+                              "error": "Error de validacion",
+                              "mensaje": "[Precio no puede ser negativo., Descripcion no puede estar vacia.]",
+                              "fechaHora": "2026-11-10T09:00:00"
+                            }
+                            """)
             )
     )
-    @ApiResponse(responseCode = "403", description = "El usuario no tiene rol ADMIN")
-    @ApiResponse(responseCode = "404", description = "Producto no encontrado")
+    @ApiResponse(responseCode = "403", description = "El usuario no tiene rol ADMIN (respuesta sin cuerpo definido)")
+    @ApiResponse(responseCode = "404", description = "Producto no encontrado (respuesta sin cuerpo)")
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<?> actualizar(
-            @Parameter(description = "ID del producto", example = "1") @PathVariable Long id,
+            @Parameter(description = "ID del producto", example = "4") @PathVariable Long id,
             @Valid @RequestBody Producto producto) {
         Producto productoActualizado = productoService.update(id, producto);
         if (productoActualizado == null) return ResponseEntity.notFound().build();
@@ -185,8 +275,8 @@ public class ProductoController {
             summary = "Eliminar un producto por ID",
             description = "Elimina un producto del sistema a traves del ID. Requiere rol ADMIN"
     )
-    @ApiResponse(responseCode = "204", description = "Producto eliminado")
-    @ApiResponse(responseCode = "403", description = "El usuario no tiene rol ADMIN")
+    @ApiResponse(responseCode = "204", description = "Producto eliminado (respuesta sin cuerpo)")
+    @ApiResponse(responseCode = "403", description = "El usuario no tiene rol ADMIN (respuesta sin cuerpo definido)")
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> borrar(

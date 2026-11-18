@@ -1,6 +1,7 @@
 # NutriVida - Back-end (Microservicios)
 
-Back-end de la clínica de nutrición **NutriVida**, construido como **4 microservicios independientes** con Spring Boot, cada uno con su propia base de datos MySQL, autenticación con **JWT** y documentación en **Swagger** con enlaces **HATEOAS** en los GET.
+Back-end de la clínica de nutrición **NutriVida**, construido como **4 microservicios independientes** con Spring Boot, cada uno con su propia base de datos MySQL, autenticación con **JWT**, documentación en **Swagger** con enlaces **HATEOAS** en los GET, migraciones con **Flyway** y pruebas con **JUnit 5** y **DataFaker**.
+
 ## Datos del curso
 
 | | |
@@ -30,7 +31,7 @@ NutriVida es una clínica de nutrición y dietética fundada en 2016 en Temuco, 
 - MySQL
 - Lombok
 - springdoc-openapi 3.0.2 (Swagger UI)
-- JUnit 5 y DataFaker <!-- COMPLETAR: ajustar según lo que use finalmente el testing -->
+- JUnit 5, Mockito, Spring Security Test y DataFaker 2.7.0 (pruebas)
 - Maven (`mvnw`)
 
 ---
@@ -60,10 +61,13 @@ Cada servicio tiene su propia base de datos y **no hay relaciones entre ellas**:
 src/main/resources/
 ├── application.yml
 └── db/migration/                 Migraciones Flyway (V1, V2...)
+src/test/java/cl/duoc/<servicio>/
+├── DatosPrueba.java              Datos con DataFaker, JSON y tokens JWT para los tests
+├── service/                      Tests de service (Mockito)
+└── controller/                   Tests de controller (MockMvc con seguridad)
 ```
 
 `auth-service` agrega las carpetas `dto/` (LoginRequest, RegistroRequest, LoginResponse, UsuarioResponse) y `config/` (usuarios iniciales).
-
 
 ---
 
@@ -138,7 +142,7 @@ El registro valida lo mismo que el front: correo de `@gmail.com`, `@duocuc.cl` o
 
 ### Clave secreta
 
-Los **4 servicios deben tener exactamente el mismo `jwt.secret`**, de mínimo 32 caracteres. Por defecto se usa el valor del `application.yml`, y se puede cambiar con la variable de entorno `JWT_SECRET` (en los 4 servicios):
+Los **4 servicios deben tener exactamente el mismo `jwt.secret`**, de mínimo 32 caracteres (requisito de HS256: 256 bits). Es la clave con la que se firman y validan los tokens, no el token en sí. Por defecto se usa el valor del `application.yml`, y se puede cambiar con la variable de entorno `JWT_SECRET` (en los 4 servicios):
 
 ```yaml
 jwt:
@@ -147,6 +151,38 @@ jwt:
 ```
 
 > La clave por defecto es solo para desarrollo. En un entorno real no debe estar escrita en el código.
+
+---
+
+## Documentación Swagger
+
+Cada servicio expone su Swagger UI (ver tabla de microservicios). Todos comparten la misma configuración en el `application.yml`:
+
+```yaml
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+    doc-expansion: none
+    default-models-expand-depth: -1
+    display-request-duration: true
+```
+
+Qué incluye la documentación de cada endpoint:
+
+- `@Tag` con la descripción del servicio y el rol requerido.
+- `@Operation` con resumen y descripción.
+- `@ApiResponse` con el código y un **ejemplo de respuesta** para cada caso: 200, 201, 204, 400, 401, 403 y 404, según corresponda.
+- **Ejemplos de cuerpo** prellenados en el POST y el PUT (en varios casos con más de una opción desplegable).
+- Ejemplos de error 400 con los mensajes reales: validación, regla de negocio (RUT, email o total repetido o inválido, estado inválido) y duplicados.
+- Los GET responden en formato `application/hal+json`, con ejemplos que incluyen `_links`.
+- Los **404**, el **204** y los **403** se documentan sin cuerpo: los 404 y el 204 los devuelve el controller vacíos, y los 403 los genera Spring Security.
+- Los modelos y DTOs tienen `@Schema` con descripción y ejemplo por campo; los campos opcionales están marcados como no requeridos.
+- Botón **Authorize** en pacientes, productos y pedidos (esquema `bearerAuth`). En `auth-service` no hay candados porque `/login` y `/register` son públicos.
 
 ---
 
@@ -183,7 +219,7 @@ Los GET devuelven el recurso con enlaces (`_links`) en formato HAL (`application
 {
   "id": 1,
   "nombre": "Aceite de Oliva Extra Virgen 500ml",
-  "descripcion": "Aceite de oliva extra virgen prensado en frio.",
+  "descripcion": "Aceite de oliva extra virgen prensado en frio, ideal para ensaladas y cocina diaria.",
   "precio": 7990,
   "categoria": "Despensa",
   "destacado": false,
@@ -198,7 +234,7 @@ Los GET devuelven el recurso con enlaces (`_links`) en formato HAL (`application
 **GET `/api/v1/pedidos/1`** incluye además enlaces al paciente y al producto del pedido:
 
 ```json
-"_links" {
+"_links": {
   "self": { "href": "http://localhost:8083/api/v1/pedidos/1" },
   "pedidos": { "href": "http://localhost:8083/api/v1/pedidos" },
   "paciente": { "href": "http://localhost:8081/api/v1/pacientes/1" },
@@ -213,9 +249,9 @@ El listado (`GET /api/v1/productos`) entrega una colección en `_embedded` con l
 | Servicio | Regla |
 | :--- | :--- |
 | Auth | El correo no puede repetirse. El registro siempre crea rol `PACIENTE`. Login con datos incorrectos responde 401 sin indicar si el correo existe. |
-| Pacientes | El `rut` y el `email` no pueden repetirse. |
+| Pacientes | El `rut` y el `email` no pueden repetirse. Al actualizar, solo se valida si el valor cambió. |
 | Productos | Si no se envía `destacado` queda en `false`; si no se envía `activo` queda en `true`. |
-| Pedidos | `total` debe ser igual a `cantidad × precioUnitario`. `estado` solo acepta `pendiente` o `pagado` (por defecto `pendiente`). Si no se envía `fechaPedido` se usa la fecha y hora actual. |
+| Pedidos | `total` debe ser igual a `cantidad × precioUnitario`. `estado` solo acepta `pendiente` o `pagado` (por defecto `pendiente`; se normaliza a minúsculas). Si no se envía `fechaPedido` se usa la fecha y hora actual. |
 
 ---
 
@@ -239,7 +275,7 @@ CREATE DATABASE IF NOT EXISTS nv_bd_pedidos;
 CREATE DATABASE IF NOT EXISTS nv_bd_auth;
 ```
 
-Las tablas **no** se crean a mano: las crea Flyway con las migraciones `V1` al arrancar cada servicio.
+Las tablas **no** se crean a mano: las crea Flyway con las migraciones al arrancar cada servicio.
 
 ### Paso 2: Revisar la conexión
 
@@ -252,7 +288,7 @@ datasource:
   password:
 ```
 
-Si tu MySQL usa otro puerto o tiene contraseña en `root`, ajusta la URL y el campo `password` en los 3 archivos.
+Si tu MySQL usa otro puerto o tiene contraseña en `root`, ajusta la URL y el campo `password` en los 4 archivos.
 
 ### Paso 3: Compilar
 
@@ -270,7 +306,7 @@ El orden es indiferente. Desde IntelliJ ejecutando cada clase `*Application`, o 
 ./mvnw spring-boot:run
 ```
 
-En la consola debe aparecer `Started ...Application` y el aviso de que Flyway aplicó la migración.
+En la consola debe aparecer `Started ...Application` y el aviso de que Flyway aplicó las migraciones.
 
 > En `auth-service` puede aparecer el aviso `Using generated security password`. Es solo informativo y se puede ignorar.
 
@@ -309,7 +345,7 @@ Los hashes deben comenzar con `$2a$10$`, nunca en texto plano.
 
 ## Cómo probar con Swagger (flujo con JWT)
 
-1. Abrir http://localhost:8084/swagger-ui.html y ejecutar `POST /api/v1/auth/login` con un usuario de prueba.
+1. Abrir http://localhost:8084/swagger-ui.html y ejecutar `POST /api/v1/auth/login` con un usuario de prueba (el cuerpo trae los 3 usuarios como ejemplos seleccionables).
 2. Copiar el valor de `token` de la respuesta.
 3. Abrir el Swagger de otro servicio (por ejemplo http://localhost:8082/swagger-ui.html) y pulsar **Authorize**.
 4. Pegar **solo el token** (sin escribir la palabra `Bearer`) y confirmar.
@@ -326,6 +362,9 @@ Los hashes deben comenzar con `$2a$10$`, nunca en texto plano.
 | 5 | Modificar una letra del token y repetir | 401 |
 | 6 | `POST /auth/register` con un correo nuevo | 201 con rol `PACIENTE` |
 | 7 | Repetir el registro | 400 por correo repetido |
+| 8 | `POST /auth/register` con un correo `@hotmail.com` | 400 por dominio no permitido |
+| 9 | `GET /pacientes/1` | 200 con `_links` (self y pacientes) |
+| 10 | `GET /pedidos/1` | 200 con 4 enlaces (self, pedidos, paciente y producto) |
 
 ---
 
@@ -340,24 +379,24 @@ Los hashes deben comenzar con `$2a$10$`, nunca en texto plano.
 }
 ```
 
-**POST /api/v1/pacientes**
+**POST /api/v1/pacientes** (el RUT y el email no deben existir ya en la base)
 
 ```json
 {
-  "rut": "12.345.678-9",
-  "nombre": "Ana",
-  "apellido": "Pérez González",
-  "email": "paciente@gmail.com",
-  "telefono": "+56912345678",
-  "fechaNacimiento": "1995-08-20",
+  "rut": "20.123.456-7",
+  "nombre": "Camila",
+  "apellido": "Reyes Vidal",
+  "email": "camila.reyes@gmail.com",
+  "telefono": "+56933445566",
+  "fechaNacimiento": "1998-04-12",
   "sexoBiologico": "Femenino",
   "identidadGenero": "Mujer",
-  "peso": 68.5,
-  "estatura": 165,
-  "cintura": 80,
-  "alergias": "Alergia a los frutos secos",
+  "peso": 62.5,
+  "estatura": 168,
+  "cintura": 74,
+  "alergias": "Intolerancia a la lactosa",
   "enfermedades": null,
-  "patronAlimenticio": "Omnívoro"
+  "patronAlimenticio": "Vegetariano"
 }
 ```
 
@@ -365,10 +404,10 @@ Los hashes deben comenzar con `$2a$10$`, nunca en texto plano.
 
 ```json
 {
-  "nombre": "Aceite de Oliva Extra Virgen 500ml",
-  "descripcion": "Aceite de oliva extra virgen prensado en frío, ideal para ensaladas y cocina diaria.",
-  "precio": 7990,
-  "categoria": "Despensa"
+  "nombre": "Barra de Cereal Integral 30g",
+  "descripcion": "Barra de cereal con avena, miel y frutos secos.",
+  "precio": 1290,
+  "categoria": "Snacks"
 }
 ```
 
@@ -384,21 +423,26 @@ Los hashes deben comenzar con `$2a$10$`, nunca en texto plano.
 }
 ```
 
-Pruebas de error esperadas (400): repetir el mismo paciente (RUT repetido), un producto con `precio` negativo, un pedido con `total` distinto de `cantidad × precioUnitario` y un registro con correo `@hotmail.com`.
+Pruebas de error esperadas (400): repetir el paciente de los datos iniciales (RUT `12.345.678-5` o email `paciente@gmail.com`), un paciente con RUT mal formado, un producto con `precio` negativo, un pedido con `total` distinto de `cantidad × precioUnitario`, un pedido con `estado` `cancelado` y un registro con correo `@hotmail.com`.
+
 ---
 
 ## Migraciones con Flyway
 
-Las migraciones están en `src/main/resources/db/migration/` de cada servicio y **no se modifican una vez aplicadas**: los cambios se hacen con una versión nueva (`V2`, `V3`...).
-
-<!-- COMPLETAR: listar las migraciones de cada servicio, por ejemplo:
+Las migraciones están en `src/main/resources/db/migration/` de cada servicio y **no se modifican una vez aplicadas**: los cambios se hacen con una versión nueva (`V2`, `V3`...). Flyway las aplica en orden al arrancar y las registra en `flyway_schema_history`.
 
 | Servicio | Migración | Contenido |
 | :--- | :--- | :--- |
-| pacientes-service | V1__creacion_tabla_pacientes.sql | Crea la tabla pacientes |
-| pacientes-service | V2__insercion_pacientes.sql | Datos de prueba |
-...
--->
+| `pacientes-service` | `V1__creacion_tabla_pacientes.sql` | Crea la tabla `pacientes` (RUT y email únicos) |
+| `pacientes-service` | `V2__datos_iniciales_pacientes.sql` | 4 pacientes de ejemplo (el primero coincide con `paciente@gmail.com` de auth) |
+| `pacientes-service` | `V3__indice_apellido_pacientes.sql` | Índice para búsquedas por apellido |
+| `productos-service` | `V1__creacion_tabla_productos.sql` | Crea la tabla `productos` |
+| `productos-service` | `V2__datos_iniciales_productos.sql` | 6 productos de ejemplo (usados por los pedidos) |
+| `productos-service` | `V3__indice_categoria_productos.sql` | Índice para filtrar por categoría |
+| `pedidos-service` | `V1__creacion_tabla_pedidos.sql` | Crea la tabla `pedidos` (CHECK de cantidad y estado) |
+| `pedidos-service` | `V2__datos_iniciales_pedidos.sql` | 5 pedidos de ejemplo, con total = cantidad × precio unitario |
+| `pedidos-service` | `V3__indices_pedidos.sql` | Índices por paciente y por estado |
+| `auth-service` | `V1__creacion_tabla_usuarios.sql` | Crea la tabla `usuarios` (CHECK de rol: ADMIN, PACIENTE, SECRETARIA) |
 
 En `auth-service` los usuarios iniciales no están en una migración porque sus contraseñas necesitan el hash BCrypt: los crea la clase `DatosIniciales` al arrancar, y solo inserta los que no existen.
 
@@ -406,15 +450,33 @@ En `auth-service` los usuarios iniciales no están en una migración porque sus 
 
 ## Pruebas
 
-<!-- COMPLETAR: pruebas con JUnit y DataFaker. Indicar:
-     - qué se prueba en cada servicio (services y controllers)
-     - cómo se ejecutan: ./mvnw test
-     - si necesitan MySQL corriendo (los contextLoads la necesitan) -->
+Las pruebas usan **JUnit 5**, **Mockito**, **Spring Security Test** y **DataFaker**. Cada servicio tiene una clase `DatosPrueba` que genera datos falsos válidos (nombres, RUT con dígito verificador, precios, pedidos con total correcto), arma el JSON de los cuerpos y firma tokens JWT con la misma clave que usan los servicios.
+
+| Servicio | Clase de prueba | Qué se prueba |
+| :--- | :--- | :--- |
+| `pacientes-service` | `PacienteServiceTest` (10) | CRUD, RUT repetido, email repetido, actualización con y sin cambio de RUT |
+| `pacientes-service` | `PacienteControllerTest` (10) | 401 sin token o con token falso, GET con `_links`, 404, POST 201, 400 por validación, 400 por RUT repetido, PUT 404, DELETE 204 |
+| `productos-service` | `ProductoServiceTest` (8) | CRUD y valores por defecto de `destacado` y `activo` |
+| `productos-service` | `ProductoControllerTest` (11) | 401, GET con `_links`, 404, 403 para `PACIENTE` en POST y DELETE, 201 con `ADMIN`, 400 por validación, PUT 404, DELETE 204 |
+| `pedidos-service` | `PedidoServiceTest` (12) | CRUD, total que no cuadra, estado inválido, estado y fecha por defecto, normalización del estado |
+| `pedidos-service` | `PedidoControllerTest` (10) | 401, GET con 4 enlaces (self, pedidos, paciente, producto), 404, POST 201, 400 por validación y por total, PUT 404, DELETE 204 |
+| `auth-service` | `AuthServiceApplicationTests` | Solo `contextLoads`. Las pruebas de `JwtUtil` y `AuthService` (login 200, clave mala 401, registro 201, correo repetido 400) quedan pendientes |
+
+Cómo funcionan:
+
+- **Tests de service:** `@ExtendWith(MockitoExtension.class)` con el repository simulado (`@Mock`), sin base de datos.
+- **Tests de controller:** `@WebMvcTest` con el service simulado (`@MockitoBean`) y `MockMvc` armado con la cadena de Spring Security (`springSecurity()`), importando `SecurityConfig`, `JwtFilter` y `JwtUtil`. Así la seguridad está activa y se prueban los 401 y 403 reales.
+- **Tests `contextLoads`:** los generados por Spring en cada servicio levantan el contexto completo, por lo que **necesitan MySQL corriendo y las 4 bases de datos creadas**, o fallan.
+
+Ejecutar los tests dentro de cada carpeta de servicio:
+
+```bash
+./mvnw test
+```
 
 ---
 
 ## Posibles problemas
-
 
 | Mensaje o síntoma | Causa |
 | :--- | :--- |
@@ -423,16 +485,20 @@ En `auth-service` los usuarios iniciales no están en una migración porque sus 
 | `Port already in use` | Otro servicio ya usa ese puerto. |
 | `Schema-validation: wrong column type` | La entidad y el SQL de la migración no coinciden. |
 | `Schema-validation: missing table [usuarios]` | La migración de `auth-service` no está en `db/migration/`. |
+| Flyway falla por checksum | Se modificó una migración ya aplicada. Los cambios deben ir en una versión nueva. |
 | Swagger no carga | Revisar la dependencia springdoc 3.0.2 y la ruta `/swagger-ui.html`. |
 | 401 aunque el token sea válido | El `jwt.secret` no es idéntico en los 4 servicios, o el token expiró (dura 1 hora). |
 | 401 al pulsar Authorize | Se escribió la palabra `Bearer` junto al token: debe pegarse solo el token. |
 | 403 en `POST`, `PUT` o `DELETE` de productos | El usuario no tiene rol `ADMIN`. |
 | Los GET no muestran `_links` | Falta la dependencia `spring-boot-starter-hateoas` o no se recargó Maven. |
+| `contextLoads` falla | MySQL no está corriendo o falta alguna de las 4 bases de datos. |
+| `WeakKeyException` al arrancar | El `jwt.secret` tiene menos de 32 caracteres. |
 
 ---
 
 ## Trabajo futuro
 
+- Pruebas de `JwtUtil` y `AuthService` en `auth-service`.
 - Servicio de citas, con permisos para `SECRETARIA` y `ADMIN`.
 - Nuevas tablas y servicios mediante migraciones Flyway: nutricionistas, categorías, detalle de pedido y datos de salud de la cita.
 - Restringir el `DELETE` de pacientes y pedidos al rol `ADMIN`.

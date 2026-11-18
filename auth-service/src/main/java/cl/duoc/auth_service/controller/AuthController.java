@@ -31,17 +31,48 @@ public class AuthController {
     @Operation(
             summary = "Iniciar sesion",
             description = "Valida correo y contraseña y devuelve un token JWT con una duracion de 1 hora. "
-                    + "El token se usa en los demas servicios (boton Authorize de Swagger, "
-                    + "pegando solo el token, sin la palabra Bearer). "
-                    + "Usuarios de prueba: admin@duocuc.cl / Admin1234, "
-                    + "paciente@gmail.com / Paciente1234 y secretaria@duocuc.cl / Secretaria1234"
+                    + "Copia el valor de 'token' y pegalo en el boton Authorize de los otros servicios "
+                    + "(solo el token, sin la palabra Bearer)",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = LoginRequest.class),
+                            examples = {
+                                    @ExampleObject(name = "Administrador", value = """
+                                            {
+                                              "email": "admin@duocuc.cl",
+                                              "password": "Admin1234"
+                                            }
+                                            """),
+                                    @ExampleObject(name = "Paciente", value = """
+                                            {
+                                              "email": "paciente@gmail.com",
+                                              "password": "Paciente1234"
+                                            }
+                                            """),
+                                    @ExampleObject(name = "Secretaria", value = """
+                                            {
+                                              "email": "secretaria@duocuc.cl",
+                                              "password": "Secretaria1234"
+                                            }
+                                            """)
+                            }
+                    )
+            )
     )
     @ApiResponse(
             responseCode = "200",
-            description = "Login correcto",
+            description = "Login correcto. Devuelve el token y el rol del usuario",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = LoginResponse.class)
+                    schema = @Schema(implementation = LoginResponse.class),
+                    examples = @ExampleObject(name = "Login correcto", value = """
+                            {
+                              "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBkdW9jdWMuY2wiLCJyb2wiOiJBRE1JTiIsImlhdCI6MTc2Mjc2NzYwMCwiZXhwIjoxNzYyNzcxMjAwfQ.firma",
+                              "tipo": "Bearer",
+                              "rol": "ADMIN"
+                            }
+                            """)
             )
     )
     @ApiResponse(
@@ -49,7 +80,15 @@ public class AuthController {
             description = "Correo o contraseña vacios",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ErrorResponse.class)
+                    schema = @Schema(implementation = ErrorResponse.class),
+                    examples = @ExampleObject(name = "Campos vacios", value = """
+                            {
+                              "status": 400,
+                              "error": "Error de validacion",
+                              "mensaje": "[Email no puede estar vacio., Password no puede estar vacio.]",
+                              "fechaHora": "2026-11-10T09:00:00"
+                            }
+                            """)
             )
     )
     @ApiResponse(
@@ -77,15 +116,35 @@ public class AuthController {
     @Operation(
             summary = "Registrar un usuario",
             description = "Crea un usuario con rol PACIENTE. El correo no puede repetirse y debe ser de "
-                    + "@gmail.com, @duocuc.cl o @outlook.com. Los roles ADMIN y SECRETARIA no se pueden "
-                    + "crear desde este endpoint"
+                    + "@gmail.com, @duocuc.cl o @outlook.com. La contraseña debe tener entre 8 y 72 caracteres, "
+                    + "con una mayuscula, una minuscula y un numero. Los roles ADMIN y SECRETARIA no se pueden "
+                    + "crear desde este endpoint",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = RegistroRequest.class),
+                            examples = @ExampleObject(name = "Usuario nuevo", value = """
+                                    {
+                                      "email": "nuevo@gmail.com",
+                                      "password": "Clave1234"
+                                    }
+                                    """)
+                    )
+            )
     )
     @ApiResponse(
             responseCode = "201",
-            description = "Usuario creado",
+            description = "Usuario creado con rol PACIENTE. Nunca devuelve la contraseña",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = UsuarioResponse.class)
+                    schema = @Schema(implementation = UsuarioResponse.class),
+                    examples = @ExampleObject(name = "Usuario creado", value = """
+                            {
+                              "id": 4,
+                              "email": "nuevo@gmail.com",
+                              "rol": "PACIENTE"
+                            }
+                            """)
             )
     )
     @ApiResponse(
@@ -94,14 +153,32 @@ public class AuthController {
             content = @Content(
                     mediaType = "application/json",
                     schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(name = "Correo repetido", value = """
-                            {
-                              "status": 400,
-                              "error": "Error en reglas de negocio (Email)",
-                              "mensaje": "El email 'nuevo@gmail.com' ya se encuentra registrado.",
-                              "fechaHora": "2026-11-10T09:00:00"
-                            }
-                            """)
+                    examples = {
+                            @ExampleObject(name = "Correo repetido", value = """
+                                    {
+                                      "status": 400,
+                                      "error": "Error en reglas de negocio (Email)",
+                                      "mensaje": "El email 'nuevo@gmail.com' ya se encuentra registrado.",
+                                      "fechaHora": "2026-11-10T09:00:00"
+                                    }
+                                    """),
+                            @ExampleObject(name = "Dominio de correo no permitido", value = """
+                                    {
+                                      "status": 400,
+                                      "error": "Error de validacion",
+                                      "mensaje": "[El correo debe pertenecer a @gmail.com, @duocuc.cl o @outlook.com.]",
+                                      "fechaHora": "2026-11-10T09:00:00"
+                                    }
+                                    """),
+                            @ExampleObject(name = "Contraseña invalida", value = """
+                                    {
+                                      "status": 400,
+                                      "error": "Error de validacion",
+                                      "mensaje": "[La contraseña debe tener entre 8 y 72 caracteres, una mayuscula, una minuscula y un numero.]",
+                                      "fechaHora": "2026-11-10T09:00:00"
+                                    }
+                                    """)
+                    }
             )
     )
     @PostMapping("/register")
