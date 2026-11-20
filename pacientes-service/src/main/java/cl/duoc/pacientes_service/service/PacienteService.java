@@ -23,6 +23,11 @@ public class PacienteService {
         return pacienteRepository.findById(id).orElse(null);
     }
 
+    // Busca la ficha por correo (sin distinguir mayusculas); devuelve null si no existe
+    public Paciente findByEmail(String email) {
+        return pacienteRepository.findByEmailIgnoreCase(email).orElse(null);
+    }
+
     public Paciente save(Paciente paciente) {
         // VALIDACIONES
         if (pacienteRepository.existsByRut(paciente.getRut())) {
